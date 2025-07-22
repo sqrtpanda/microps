@@ -1,3 +1,6 @@
+#ifndef NET_H
+#define NET_H
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -42,7 +45,8 @@ struct net_device
     void *priv;
 };
 
-struct net_device_ops {
+struct net_device_ops
+{
     int (*open)(struct net_device *dev);
     int (*close)(struct net_device *dev);
     int (*transmit)(struct net_device *dev, uint16_t type, const uint8_t *data, size_t len, const void *dst);
@@ -55,3 +59,5 @@ int net_input_handler(uint16_t type, const uint8_t *data, size_t len, struct net
 int net_run(void);
 void net_shutdown(void);
 int net_init(void);
+
+#endif
