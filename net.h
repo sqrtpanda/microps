@@ -24,6 +24,8 @@
 #define NET_DEVICE_ADDR_LEN 16
 
 #define DUMMY_MTU UINT16_MAX
+#define LOOPBACK_MTU UINT16_MAX
+#define LOOPBACK_QUEUE_LIMIT 1024
 
 struct net_device
 {
