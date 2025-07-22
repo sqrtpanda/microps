@@ -23,6 +23,10 @@
 
 #define NET_DEVICE_ADDR_LEN 16
 
+#define NET_PROTOCOL_TYPE_IP 0x0800
+#define NET_PROTOCOL_TYPE_ARP 0x0806
+#define NET_PROTOCOL_TYPE_IPV6 0x86dd
+
 #define DUMMY_MTU UINT16_MAX
 #define LOOPBACK_MTU UINT16_MAX
 #define LOOPBACK_QUEUE_LIMIT 1024
@@ -56,6 +60,7 @@ struct net_device_ops
 
 struct net_device *net_device_alloc(void);
 int net_device_register(struct net_device *dev);
+int net_protocol_register(uint16_t type, void (*handler)(const uint8_t *data, size_t len, struct net_device *dev));
 int net_device_output(struct net_device *dev, uint16_t type, const uint8_t *data, size_t len, const void *dst);
 int net_input_handler(uint16_t type, const uint8_t *data, size_t len, struct net_device *dev);
 int net_run(void);
