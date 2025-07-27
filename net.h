@@ -66,5 +66,6 @@ int net_input_handler(uint16_t type, const uint8_t *data, size_t len, struct net
 int net_run(void);
 void net_shutdown(void);
 int net_init(void);
+int net_softirq_handler(void);
 
 #endif
