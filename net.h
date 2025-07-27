@@ -8,6 +8,11 @@
 #define IFNAMSIZ 16
 #endif
 
+#define NET_IFACE_FAMILY_IP 1
+#define NET_IFACE_FAMILY_IPV6 2
+
+#define NET_IFACE(x) ((struct net_iface *)(x))
+
 #define NET_DEVICE_TYPE_DUMMY 0x0000
 #define NET_DEVICE_TYPE_LOOPBACK 0x0001
 #define NET_DEVICE_TYPE_ETHERNET 0x0002
@@ -31,6 +36,13 @@
 #define LOOPBACK_MTU UINT16_MAX
 #define LOOPBACK_QUEUE_LIMIT 1024
 
+struct net_iface
+{
+    struct net_iface *next;
+    struct net_device *dev; /* Pointer to the parent network device */
+    int family;
+};
+
 struct net_device
 {
     struct net_device *next;
@@ -48,6 +60,7 @@ struct net_device
         uint8_t broadcast[NET_DEVICE_ADDR_LEN];
     };
     struct net_device_ops *ops;
+    struct net_iface *ifaces;
     void *priv;
 };
 
@@ -61,6 +74,8 @@ struct net_device_ops
 struct net_device *net_device_alloc(void);
 int net_device_register(struct net_device *dev);
 int net_protocol_register(uint16_t type, void (*handler)(const uint8_t *data, size_t len, struct net_device *dev));
+int net_device_add_iface(struct net_device *dev, struct net_iface *iface);
+struct net_iface *net_device_get_iface(struct net_device *dev, int family);
 int net_device_output(struct net_device *dev, uint16_t type, const uint8_t *data, size_t len, const void *dst);
 int net_input_handler(uint16_t type, const uint8_t *data, size_t len, struct net_device *dev);
 int net_run(void);
