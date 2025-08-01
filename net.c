@@ -1,11 +1,12 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
 #include "net.h"
 #include "platform.h"
 #include "util.h"
 #include "ip.h"
-
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include "icmp.h"
 
 static struct net_device *devices;
 static struct net_protocol *protocols;
@@ -273,6 +274,11 @@ int net_init(void)
     if (ip_init() == -1)
     {
         errorf("ip_init() failure");
+        return -1;
+    }
+    if (icmp_init() == -1)
+    {
+        errorf("icmp_init() failure");
         return -1;
     }
     infof("initialized");
