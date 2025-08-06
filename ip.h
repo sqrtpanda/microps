@@ -13,6 +13,7 @@
 #define IP_HDR_SIZE_MAX 60
 
 #define IP_TOTAL_SIZE_MAX UINT16_MAX
+#define IP_PAYLOAD_SIZE_MAX (IP_TOTAL_SIZE_MAX - IP_HDR_SIZE_MIN)
 
 typedef uint32_t ip_addr_t;
 #define IP_ADDR_STR_LEN 16
