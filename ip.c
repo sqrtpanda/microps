@@ -6,6 +6,7 @@
 #include "net.h"
 #include "util.h"
 #include "platform.h"
+#include "arp.h"
 
 static struct ip_iface *ifaces;
 
@@ -206,6 +207,7 @@ static uint16_t ip_generate_id(void)
 static int ip_output_device(struct ip_iface *iface, const uint8_t *data, size_t len, ip_addr_t dst)
 {
     uint8_t hwaddr[NET_DEVICE_ADDR_LEN] = {};
+    int ret;
 
     if (NET_IFACE(iface)->dev->flags & NET_DEVICE_FLAG_NEED_ARP)
     {
@@ -215,8 +217,10 @@ static int ip_output_device(struct ip_iface *iface, const uint8_t *data, size_t 
         }
         else
         {
-            errorf("arp does not implement");
-            return -1;
+            ret = arp_resolve(NET_IFACE(iface), dst, hwaddr);
+            if (ret != ARP_RESOLVE_FOUND) {
+                return ret;
+            }
         }
     }
     return net_device_output(NET_IFACE(iface)->dev, NET_PROTOCOL_TYPE_IP, data, len, hwaddr);
