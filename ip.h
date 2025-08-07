@@ -19,6 +19,8 @@ typedef uint32_t ip_addr_t;
 #define IP_ADDR_LEN 4
 #define IP_ADDR_STR_LEN 16
 
+#define IP_ENDPOINT_STR_LEN (IP_ADDR_STR_LEN + 6) /* xxx.xxx.xxx.xxx:yyyyy\0 */
+
 #define IP_PROTOCOL_ICMP 1
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
@@ -44,6 +46,8 @@ extern const ip_addr_t IP_ADDR_BROADCAST;
 void ip_dump(const uint8_t *data, size_t len);
 int ip_addr_pton(const char *p, ip_addr_t *n);
 char *ip_addr_ntop(ip_addr_t n, char *p, size_t size);
+int ip_endpoint_pton(const char *p, struct ip_endpoint *n);
+char *ip_endpoint_ntop(const struct ip_endpoint *n, char *p, size_t size);
 int ip_route_set_default_gateway(struct ip_iface *iface, const char *gateway);
 struct ip_iface *ip_route_get_iface(ip_addr_t dst);
 ssize_t ip_output(uint8_t protocol, const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst);
