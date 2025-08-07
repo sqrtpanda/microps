@@ -2,6 +2,8 @@
 #include <signal.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/time.h>
+#include <errno.h>
 
 #include "net.h"
 #include "util.h"
@@ -24,13 +26,20 @@ static sigset_t sigmask;
 static pthread_t tid;
 static pthread_barrier_t barrier;
 
-int intr_init(void)
+static int intr_timer_setup(struct itimerspec *interval)
 {
-    tid = pthread_self();
-    pthread_barrier_init(&barrier, NULL, 2);
-    sigemptyset(&sigmask);
-    sigaddset(&sigmask, SIGHUP);
-    sigaddset(&sigmask, SIGUSR1);
+    timer_t id;
+
+    if (timer_create(CLOCK_REALTIME, NULL, &id) == -1)
+    {
+        errorf("timer_create: %s", strerror(errno));
+        return -1;
+    }
+    if (timer_settime(id, 0, interval, NULL) == -1)
+    {
+        errorf("timer_settime: %s", strerror(errno));
+        return -1;
+    }
     return 0;
 }
 
@@ -72,11 +81,19 @@ int intr_request_irq(unsigned int irq, int (*handler)(unsigned int irq, void *de
 
 static void *intr_thread(void *arg)
 {
+    const struct timespec ts = {0, 1000000}; /* 1ms */
+    struct itimerspec interval = {ts, ts};
+
     int terminate = 0, sig, err;
     struct irq_entry *entry;
 
     debugf("start...");
     pthread_barrier_wait(&barrier);
+    if (intr_timer_setup(&interval) == -1)
+    {
+        errorf("intr_timer_setup() failure");
+        return NULL;
+    }
     while (!terminate)
     {
         err = sigwait(&sigmask, &sig);
@@ -93,6 +110,9 @@ static void *intr_thread(void *arg)
         case SIGUSR1:
             net_softirq_handler();
             break;
+        case SIGALRM:
+            net_timer_handler();
+            break;
         default:
             for (entry = irqs; entry; entry = entry->next)
             {
@@ -107,6 +127,17 @@ static void *intr_thread(void *arg)
     }
     debugf("terminated");
     return NULL;
+}
+
+int intr_init(void)
+{
+    tid = pthread_self();
+    pthread_barrier_init(&barrier, NULL, 2);
+    sigemptyset(&sigmask);
+    sigaddset(&sigmask, SIGHUP);
+    sigaddset(&sigmask, SIGUSR1);
+    sigaddset(&sigmask, SIGALRM);
+    return 0;
 }
 
 int intr_run(void)
