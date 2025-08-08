@@ -110,6 +110,48 @@ int net_device_add_iface(struct net_device *dev, struct net_iface *iface)
     return 0;
 }
 
+struct net_event
+{
+    struct net_event *next;
+    void (*handler)(void *arg);
+    void *arg;
+};
+
+static struct net_event *events;
+
+int net_event_subscribe(void (*handler)(void *arg), void *arg)
+{
+    struct net_event *event;
+
+    event = memory_alloc(sizeof(*event));
+    if (!event)
+    {
+        errorf("memory_alloc() failure");
+        return -1;
+    }
+    event->handler = handler;
+    event->arg = arg;
+    event->next = events;
+    events = event;
+    return 0;
+}
+
+int net_event_handler(void)
+{
+    struct net_event *event;
+
+    for (event = events; event; event = event->next)
+    {
+        event->handler(event->arg);
+    }
+    return 0;
+}
+
+void net_raise_event()
+{
+    intr_raise_irq(INTR_IRQ_EVENT);
+}
+
 struct net_iface *net_device_get_iface(struct net_device *dev, int family)
 {
     struct net_iface *entry;

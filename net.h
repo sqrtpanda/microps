@@ -86,4 +86,8 @@ void net_shutdown(void);
 int net_init(void);
 int net_softirq_handler(void);
 
+int net_event_subscribe(void (*handler)(void *arg), void *arg);
+int net_event_handler(void);
+void net_raise_event(void);
+
 #endif
