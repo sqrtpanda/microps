@@ -31,7 +31,7 @@
 #define TCP_PCB_STATE_CLOSE_WAIT 10
 #define TCP_PCB_STATE_LAST_ACK 11
 
-#define TCP_DEFAULT_RTO 200000 /* micro seconds */
+#define TCP_DEFAULT_RTO 200000     /* micro seconds */
 #define TCP_RETRANSMIT_DEADLINE 12 /* seconds */
 
 struct pseudo_hdr
@@ -97,7 +97,8 @@ struct tcp_segment_info
     uint16_t up;
 };
 
-struct tcp_queue_entry {
+struct tcp_queue_entry
+{
     struct timeval first;
     struct timeval last;
     unsigned int rto; /* micro seconds */
@@ -223,7 +224,8 @@ static int tcp_retransmit_queue_add(struct tcp_pcb *pcb, uint32_t seq, uint8_t f
     struct tcp_queue_entry *entry;
 
     entry = memory_alloc(sizeof(*entry) + len);
-    if (!entry) {
+    if (!entry)
+    {
         errorf("memory_alloc() failure");
         return -1;
     }
@@ -234,7 +236,8 @@ static int tcp_retransmit_queue_add(struct tcp_pcb *pcb, uint32_t seq, uint8_t f
     memcpy(entry->data, data, entry->len);
     gettimeofday(&entry->first, NULL);
     entry->last = entry->first;
-    if (!queue_push(&pcb->queue, entry)) {
+    if (!queue_push(&pcb->queue, entry))
+    {
         errorf("queue_push() failure");
         memory_free(entry);
         return -1;
@@ -246,12 +249,15 @@ static void tcp_retransmit_queue_cleanup(struct tcp_pcb *pcb)
 {
     struct tcp_queue_entry *entry;
 
-    while (1) {
+    while (1)
+    {
         entry = queue_peek(&pcb->queue);
-        if (!entry) {
+        if (!entry)
+        {
             break;
         }
-        if (entry->seq >= pcb->snd.una) {
+        if (entry->seq >= pcb->snd.una)
+        {
             break;
         }
         entry = queue_pop(&pcb->queue);
@@ -271,14 +277,16 @@ static void tcp_retransmit_queue_emit(void *arg, void *data)
     entry = (struct tcp_queue_entry *)data;
     gettimeofday(&now, NULL);
     timersub(&now, &entry->first, &diff);
-    if (diff.tv_sec >= TCP_RETRANSMIT_DEADLINE) {
+    if (diff.tv_sec >= TCP_RETRANSMIT_DEADLINE)
+    {
         pcb->state = TCP_PCB_STATE_CLOSED;
         sched_wakeup(&pcb->ctx);
         return;
     }
     timeout = entry->last;
     timeval_add_usec(&timeout, entry->rto);
-    if (timercmp(&now, &timeout, >)) {
+    if (timercmp(&now, &timeout, >))
+    {
         tcp_output_segment(entry->seq, pcb->rcv.nxt, entry->flg, pcb->rcv.wnd, entry->data, entry->len, &pcb->local, &pcb->foreign);
         entry->last = now;
         entry->rto *= 2;
@@ -372,7 +380,68 @@ static void tcp_segment_arrives(struct tcp_segment_info *seg, uint8_t flags, uin
         /* drop segment */
         return;
     case TCP_PCB_STATE_SYN_SENT:
-        // implement later
+        /*
+         * 1st check the ACK bit
+         */
+        if (TCP_FLG_ISSET(flags, TCP_FLG_ACK))
+        {
+            if (seg->ack <= pcb->iss || seg->ack > pcb->snd.nxt)
+            {
+                tcp_output_segment(seg->ack, 0, TCP_FLG_RST, 0, NULL, 0, local, foreign);
+                return;
+            }
+            if (pcb->snd.una <= seg->ack && seg->ack <= pcb->snd.nxt)
+            {
+                acceptable = 1;
+            }
+        }
+
+        /*
+         * 2nd check the RST bit
+         */
+
+        /*
+         * 3rd check security and precedence (ignore)
+         */
+
+        /*
+         * 4th check the SYN bit
+         */
+        if (TCP_FLG_ISSET(flags, TCP_FLG_SYN))
+        {
+            pcb->rcv.nxt = seg->seq + 1;
+            pcb->irs = seg->seq;
+            if (acceptable)
+            {
+                pcb->snd.una = seg->ack;
+                tcp_retransmit_queue_cleanup(pcb);
+            }
+            if (pcb->snd.una > pcb->iss)
+            {
+                pcb->state = TCP_PCB_STATE_ESTABLISHED;
+                tcp_output(pcb, TCP_FLG_ACK, NULL, 0);
+                /* NOTE: not specified in the RFC793, but send window initialization required */
+                pcb->snd.wnd = seg->wnd;
+                pcb->snd.wl1 = seg->seq;
+                pcb->snd.wl2 = seg->ack;
+                sched_wakeup(&pcb->ctx);
+                /* ignore: continue processing at the sixth step below where the URG bit is checked */
+                return;
+            }
+            else
+            {
+                pcb->state = TCP_PCB_STATE_SYN_RECEIVED;
+                tcp_output(pcb, TCP_FLG_SYN | TCP_FLG_ACK, NULL, 0);
+                /* ignore: If there are other controls or text in the segment, queue them for processing after the ESTABLISHED state has been reached */
+                return;
+            }
+        }
+
+        /*
+         * 5th, if neither of the SYN or RST bits is set then drop the segment and return
+         */
+
+        /* drop segment */
         return;
     }
     /*
@@ -520,8 +589,10 @@ static void tcp_timer(void)
     struct tcp_pcb *pcb;
 
     mutex_lock(&mutex);
-    for (pcb = pcbs; pcb < tailof(pcbs); pcb++) {
-        if (pcb->state == TCP_PCB_STATE_FREE) {
+    for (pcb = pcbs; pcb < tailof(pcbs); pcb++)
+    {
+        if (pcb->state == TCP_PCB_STATE_FREE)
+        {
             continue;
         }
         queue_foreach(&pcb->queue, tcp_retransmit_queue_emit, pcb);
@@ -671,10 +742,22 @@ int tcp_open_rfc793(struct ip_endpoint *local, struct ip_endpoint *foreign, int 
     }
     if (active)
     {
-        errorf("active open does not implement");
-        tcp_pcb_release(pcb);
-        mutex_unlock(&mutex);
-        return -1;
+        debugf("active open: local=%s, foreign=%s, connecting...", ip_endpoint_ntop(local, ep1, sizeof(ep1)), ip_endpoint_ntop(foreign, ep2, sizeof(ep2)));
+        pcb->local = *local;
+        pcb->foreign = *foreign;
+        pcb->rcv.wnd = sizeof(pcb->buf);
+        pcb->iss = random();
+        if (tcp_output(pcb, TCP_FLG_SYN, NULL, 0) == -1)
+        {
+            errorf("tcp_output() failure");
+            pcb->state = TCP_PCB_STATE_CLOSED;
+            tcp_pcb_release(pcb);
+            mutex_unlock(&mutex);
+            return -1;
+        }
+        pcb->snd.una = pcb->iss;
+        pcb->snd.nxt = pcb->iss + 1;
+        pcb->state = TCP_PCB_STATE_SYN_SENT;
     }
     else
     {
@@ -851,14 +934,15 @@ int tcp_close(int id)
 
 int tcp_init(void)
 {
-    struct timeval interval = {0,100000};
+    struct timeval interval = {0, 100000};
 
     if (ip_protocol_register(IP_PROTOCOL_TCP, tcp_input) == -1)
     {
         errorf("ip_protocol_register() failure");
         return -1;
     }
-    if (net_timer_register(interval, tcp_timer) == -1) {
+    if (net_timer_register(interval, tcp_timer) == -1)
+    {
         errorf("net_timer_register() failure");
         return -1;
     }
